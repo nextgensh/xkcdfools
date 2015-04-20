@@ -1,4 +1,4 @@
-function pathFilename(path) {
+function pathFilename(path){ 
 	var match = /\/([^\/]+)$/.exec(path);
 	if (match) {
 		return match[1];
@@ -14,11 +14,73 @@ function randomChoice(items) {
 	return items[getRandomInt(0, items.length-1)];
 }
 
+/* Keeps track of music player stuff. */
+var soundcloud = {
+	isplaying: false,
+	soundmanager: null,
+	// My cat likes this genres, actually no I don't have a cat.
+	genres: 'chillout',
+	pagelimit: 100,
+	trackcache: {},	
+	cachefilled: false,
+	
+	// Populate the sound track cache
+	fillCache: function(callback) {
+		/* Get a random track from the specified genres to play. */
+		SC.get('/tracks', {genres: soundcloud.genres, limit: soundcloud.pagelimit}, function(tracks){
+			soundcloud.trackcache = tracks;
+			soundcloud.cachefilled = true;
+			callback();
+		});	
+	},
+
+	// Play a track with the given trackid.
+	streamTrack: function(trackid) {
+		SC.stream('/tracks/'+trackid, function(sound){
+			soundcloud.soundmanager = sound;
+			soundcloud.soundmanager.play();
+			soundcloud.isplaying = true;
+		});
+	},
+
+	// Play a random track.
+	playRandomTrack: function(trackid) {
+		if(!soundcloud.cachefilled) {
+			soundcloud.fillCache(function() {
+				soundcloud.streamTrack(soundcloud.trackcache[getRandomInt(0, soundcloud.pagelimit)].id);	
+			});
+		} else {
+			soundcloud.streamTrack(soundcloud.trackcache[getRandomInt(0, soundcloud.pagelimit)].id);	
+		}
+	},
+
+	stopTrack: function() {
+		if(soundcloud.isplaying){	
+			soundcloud.soundmanager.stop();
+			soundcloud.isplaying = false;
+		}
+	},
+
+	pauseTrack: function() {
+		if(soundcloud.isplaying){	
+			soundcloud.soundmanager.pause();
+			soundcloud.isplaying = false;
+		}
+	},
+
+	resumeTrack: function() {
+		if(!soundcloud.isplaying){	
+			soundcloud.soundmanager.resume();
+			soundcloud.isplaying = true;
+		}
+	},
+};
+
 var xkcd = {
 	latest: null,
 	last: null,
 	cache: {},
-	base: 'http://dynamic.xkcd.com/api-0/jsonp/comic/',
+	base: 'http://127.0.0.1/xkcdfools/',
 	
 	get: function(num, success, error) {
 		if (num == null) {
@@ -46,6 +108,7 @@ var xkcd = {
 	}
 };
 
+/*
 var xkcdDisplay = TerminalShell.commands['display'] = function(terminal, path) {
 	function fail() {
 		terminal.print($('<p>').addClass('error').text('display: unable to open image "'+path+'": No such file or directory.'));
@@ -89,7 +152,9 @@ var xkcdDisplay = TerminalShell.commands['display'] = function(terminal, path) {
 		}
 	}, fail);
 };
+*/
 
+/*
 TerminalShell.commands['next'] = function(terminal) {
 	xkcdDisplay(terminal, xkcd.last.num+1);
 };
@@ -118,7 +183,7 @@ TerminalShell.commands['goto'] = function(terminal, subcmd) {
 	});
 	xkcdDisplay(terminal, 292);
 };
-
+*/
 
 TerminalShell.commands['sudo'] = function(terminal) {
 	var cmd_args = Array.prototype.slice.call(arguments);
@@ -153,7 +218,7 @@ TerminalShell.filters.push(function (terminal, cmd) {
 
 TerminalShell.commands['shutdown'] = TerminalShell.commands['poweroff'] = function(terminal) {
 	if (this.sudo) {
-		terminal.print('Broadcast message from guest@xkcd');
+		terminal.print('Broadcast message from guest@nextgensh.com');
 		terminal.print();
 		terminal.print('The system is going down for maintenance NOW!');
 		return $('#screen').fadeOut();
@@ -188,9 +253,15 @@ function linkFile(url) {
 
 Filesystem = {
 	'welcome.txt': {type:'file', read:function(terminal) {
-		terminal.print($('<h4>').text('Welcome to the unixkcd console.'));
-		terminal.print('To navigate the comics, enter "next", "prev", "first", "last", "display", or "random".');
-		terminal.print('Use "ls", "cat", and "cd" to navigate the filesystem.');
+		$.ajax({
+			url: xkcd.base+'files/welcome.html',
+			dataType: 'html',
+			success: function (data) {
+				Terminal.print(data);			
+			},
+			error: function () {
+			}
+		});
 	}},
 	'license.txt': {type:'file', read:function(terminal) {
 		terminal.print($('<p>').html('Client-side logic for Wordpress CLI theme :: <a href="http://thrind.xamai.ca/">R. McFarland, 2006, 2007, 2008</a>'));
@@ -215,10 +286,12 @@ Filesystem = {
 		});
 	}}
 };
+/*
 Filesystem['blog'] = Filesystem['blag'] = linkFile('http://blag.xkcd.com');
 Filesystem['forums'] = Filesystem['fora'] = linkFile('http://forums.xkcd.com/');
 Filesystem['store'] = linkFile('http://store.xkcd.com/');
 Filesystem['about'] = linkFile('http://xkcd.com/about/');
+*/
 TerminalShell.pwd = Filesystem;
 
 TerminalShell.commands['cd'] = function(terminal, path) {
@@ -292,20 +365,6 @@ TerminalShell.commands['rm'] = function(terminal, flags, path) {
 	}
 };
 
-TerminalShell.commands['cheat'] = function(terminal) {
-	terminal.print($('<a>').text('*** FREE SHIPPING ENABLED ***').attr('href', 'http://store.xkcd.com/'));
-}; 
-
-TerminalShell.commands['reddit'] = function(terminal, num) {
-	num = Number(num);
-	if (num) {
-		url = 'http://xkcd.com/'+num+'/';
-	} else {
-		var url = window.location;
-	}
-	terminal.print($('<iframe src="http://www.reddit.com/static/button/button1.html?width=140&url='+encodeURIComponent(url)+'&newwindow=1" height="22" width="140" scrolling="no" frameborder="0"></iframe>'));
-};
-
 TerminalShell.commands['wget'] = TerminalShell.commands['curl'] = function(terminal, dest) {
 	if (dest) {
 		terminal.setWorking(true);
@@ -339,9 +398,11 @@ TerminalShell.commands['irc'] = function(terminal, nick) {
 	}
 };
 
+/* TODO: Maybe change this to inception
 TerminalShell.commands['unixkcd'] = function(terminal, nick) {
 	TerminalShell.commands['curl'](terminal, "http://www.xkcd.com/unixkcd/");
 };
+*/
 
 TerminalShell.commands['apt-get'] = function(terminal, subcmd) {
 	if (!this.sudo && (subcmd in {'update':true, 'upgrade':true, 'dist-upgrade':true})) {
@@ -505,6 +566,29 @@ TerminalShell.commands['sleep'] = function(terminal, duration) {
 	}, 1000*duration);
 };
 
+/* play - Used to play a random song from soundcloud. */
+TerminalShell.commands['play'] = function(terminal) {
+	if(soundcloud.isplaying) {
+		soundcloud.stopTrack();
+	}
+	soundcloud.playRandomTrack();
+};
+
+/* stop - Used to stop the current soundcloud song. */
+TerminalShell.commands['stop'] = function(terminal){
+	soundcloud.stopTrack();
+};
+
+TerminalShell.commands['pause'] = function(terminal){
+	soundcloud.pauseTrack();
+};
+
+TerminalShell.commands['resume'] = function(terminal){
+	soundcloud.resumeTrack();
+};
+
+
+
 // No peeking!
 TerminalShell.commands['help'] = TerminalShell.commands['halp'] = function(terminal) {
 	terminal.print('That would be cheating!');
@@ -562,17 +646,12 @@ TerminalShell.fallback = function(terminal, cmd) {
 			]));
 		} else if  (cmd == "hint") {
 			terminal.print(randomChoice([
- 				'We offer some really nice polos.',
- 				$('<p>').html('This terminal will remain available at <a href="http://xkcd.com/unixkcd/">http://xkcd.com/unixkcd/</a>'),
+ 				//$('<p>').html('This terminal will remain available at <a href="http://xkcd.com/unixkcd/">http://xkcd.com/unixkcd/</a>'),
  				'Use the source, Luke!',
  				'There are cheat codes.'
  			]));
 		} else if (cmd == 'find kitten') {
 			terminal.print($('<iframe width="800" height="600" src="http://www.robotfindskitten.net/rfk.swf"></iframe>'));
-		} else if (cmd == 'buy stuff') {
-			Filesystem['store'].enter();
-		} else if (cmd == 'time travel') {
-			xkcdDisplay(terminal, 630);
 		} else if (/:\(\)\s*{\s*:\s*\|\s*:\s*&\s*}\s*;\s*:/.test(cmd)) {
 			Terminal.setWorking(true);
 		} else {
@@ -590,18 +669,9 @@ $(document).ready(function() {
 		Terminal.print($('<p>').addClass('error').text('Unable to load startup data. :-('));
 		Terminal.promptActive = true;
 	}
+
 	$('#screen').bind('cli-load', function(e) {
-		xkcd.get(null, function(data) {
-			if (data) {
-				xkcd.latest = data;
-				$('#screen').one('cli-ready', function(e) {
-					Terminal.runCommand('cat welcome.txt');
-				});
-				Terminal.runCommand('display '+xkcd.latest.num+'/'+pathFilename(xkcd.latest.img));
-			} else {
-				noData();
-			}
-		}, noData);
+		Terminal.runCommand('cat welcome.txt');		
 	});
 	
 	$(document).konami(function(){
@@ -637,5 +707,10 @@ $(document).ready(function() {
 		}
 		TerminalShell.sudo = true;
 		konamiCount += 1;
+	});
+	
+	/* Initialize the sound cloud sdk details. */
+	SC.initialize({
+		client_id: 'bf09a66b52af51d19f0a75a94b0f7397',
 	});
 });
