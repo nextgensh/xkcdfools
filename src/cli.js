@@ -143,6 +143,42 @@ var Terminal = {
 	},
 	
 	init: function() {
+		// Initialize the filesystem. Currently its a single directory flat
+		// filesystem. 
+		$.ajax({
+			url: xkcd.base+'files/files.dir',
+			dataType: 'text',
+			success: function(data) {
+				files = data.split('\n');	
+				for(a=0; a < files.length; a++) {
+					if(files[a].length > 0) {
+						Filesystem[files[a]] = poppulateFilesystem(files[a]);
+					}
+				}
+			},
+			error: function() {
+				console.log("Could not load top directory listing");
+			}
+		});
+
+		// Method to populate the filesystem object.
+		function poppulateFilesystem (filename) {
+			return {
+				type: 'file',
+				read: function(terminal) {
+					$.ajax({
+						url: xkcd.base+'files/'+filename,
+						dataType: 'html',
+						success: function(data) {
+							Terminal.print(data);
+						},
+						error: function() {
+							console.log("poppulateFilesystem : could not open file");
+						}
+					});
+				}};
+		}
+
 		function ifActive(func) {
 			return function() {
 				if (Terminal.promptActive) {
@@ -230,6 +266,7 @@ var Terminal = {
 			}))
 			.bind('keydown', 'tab', function(e) {
 				e.preventDefault();
+				console.log(TerminalShell.commands);
 			})
 			.keyup(function(e) {
 				var keyName = $.hotkeys.specialKeys[e.which];
@@ -406,7 +443,8 @@ var Terminal = {
 			$('#display').append(text);
 		} else {
 			var av = Array.prototype.slice.call(arguments, 0);
-			$('#display').append($('<p>').text(av.join(' ')));
+			//$('#display').append($('<p>').text(av.join(' ')));
+			$('#display').append($('<p>').html(av.join(' ')));
 		}
 		this.jumpToBottom();
 	},

@@ -23,6 +23,12 @@ var soundcloud = {
 	pagelimit: 100,
 	trackcache: {},	
 	cachefilled: false,
+	// I use waveformjs.org to convert the png image of the song waveform into
+	// a bunch of floating point values so I work on them better.
+	waveformjs_endpoint: 'http://waveformjs.org/w?url=',
+	// Stores the waveform data
+	waveform_raw: {},
+	waveform_raw_store: false,
 	
 	// Populate the sound track cache
 	fillCache: function(callback) {
@@ -34,23 +40,40 @@ var soundcloud = {
 		});	
 	},
 
-	// Play a track with the given trackid.
-	streamTrack: function(trackid) {
-		SC.stream('/tracks/'+trackid, function(sound){
-			soundcloud.soundmanager = sound;
-			soundcloud.soundmanager.play();
+	// Stream and play the given track. 
+	streamTrack: function(track) {
+		waveform_raw_store = false;
+		console.log(track.duration);
+		// Convert the waveform png into floating point decimals.
+		$.ajax({
+			url: this.waveformjs_endpoint+track.waveform_url,
+			dataType: 'jsonp',
+			success: function(data){
+				waveform_raw = data;
+				waveform_raw_store = true;
+			},
+			error: function() {
+				waveform_raw_store = false;
+			}
+			});
+		SC.stream('/tracks/'+track.id, {onfinish: soundcloud.playRandomTrack,
+											whileplaying: function(){
+											}},
+		function(sound){
+			soundcloud.soundmanager = sound;	//Store for future reference. 
+			sound.play();
 			soundcloud.isplaying = true;
 		});
 	},
 
 	// Play a random track.
-	playRandomTrack: function(trackid) {
+	playRandomTrack: function() {
 		if(!soundcloud.cachefilled) {
 			soundcloud.fillCache(function() {
-				soundcloud.streamTrack(soundcloud.trackcache[getRandomInt(0, soundcloud.pagelimit)].id);	
+				soundcloud.streamTrack(soundcloud.trackcache[getRandomInt(0, soundcloud.pagelimit)]);	
 			});
 		} else {
-			soundcloud.streamTrack(soundcloud.trackcache[getRandomInt(0, soundcloud.pagelimit)].id);	
+			soundcloud.streamTrack(soundcloud.trackcache[getRandomInt(0, soundcloud.pagelimit)]);	
 		}
 	},
 
@@ -252,39 +275,6 @@ function linkFile(url) {
 }
 
 Filesystem = {
-	'welcome.txt': {type:'file', read:function(terminal) {
-		$.ajax({
-			url: xkcd.base+'files/welcome.html',
-			dataType: 'html',
-			success: function (data) {
-				Terminal.print(data);			
-			},
-			error: function () {
-			}
-		});
-	}},
-	'license.txt': {type:'file', read:function(terminal) {
-		terminal.print($('<p>').html('Client-side logic for Wordpress CLI theme :: <a href="http://thrind.xamai.ca/">R. McFarland, 2006, 2007, 2008</a>'));
-		terminal.print($('<p>').html('jQuery rewrite and overhaul :: <a href="http://www.chromakode.com/">Chromakode, 2010</a>'));
-		terminal.print();
-		$.each([
-			'This program is free software; you can redistribute it and/or',
-			'modify it under the terms of the GNU General Public License',
-			'as published by the Free Software Foundation; either version 2',
-			'of the License, or (at your option) any later version.',
-			'',
-			'This program is distributed in the hope that it will be useful,',
-			'but WITHOUT ANY WARRANTY; without even the implied warranty of',
-			'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the',
-			'GNU General Public License for more details.',
-			'',
-			'You should have received a copy of the GNU General Public License',
-			'along with this program; if not, write to the Free Software',
-			'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.'
-		], function(num, line) {
-			terminal.print(line);
-		});
-	}}
 };
 /*
 Filesystem['blog'] = Filesystem['blag'] = linkFile('http://blag.xkcd.com');
@@ -671,7 +661,17 @@ $(document).ready(function() {
 	}
 
 	$('#screen').bind('cli-load', function(e) {
-		Terminal.runCommand('cat welcome.txt');		
+		var init_doc = "welcome.html";
+		if(window.location.search.length > 0) {
+			var query_string = window.location.search.split('?')[1];
+			var queries = query_string.split('&');
+			var query_docname = queries[0];
+			var params = query_docname.split('=');
+			if(params[0] = "doc") {
+				init_doc = params[1];	
+			}
+		}
+		Terminal.runCommand("cat "+init_doc);		
 	});
 	
 	$(document).konami(function(){
@@ -710,7 +710,9 @@ $(document).ready(function() {
 	});
 	
 	/* Initialize the sound cloud sdk details. */
+	/*
 	SC.initialize({
 		client_id: 'bf09a66b52af51d19f0a75a94b0f7397',
 	});
+	*/
 });
